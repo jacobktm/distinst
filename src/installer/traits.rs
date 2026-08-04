@@ -22,6 +22,9 @@ pub trait InstallerDiskOps: Sync {
 
     /// Reports file systems that need to be supported in the install.
     fn get_support_flags(&self) -> FileSystemSupport;
+
+    /// True if the layout uses the immutable overlay btrfs subvolumes.
+    fn has_immutable_root(&self) -> bool;
 }
 
 impl InstallerDiskOps for Disks {
@@ -175,5 +178,11 @@ impl InstallerDiskOps for Disks {
         }
 
         flags
+    }
+
+    fn has_immutable_root(&self) -> bool {
+        self.get_partitions().any(|part| {
+            part.mount_options.as_deref() == Some("subvol=@base")
+        })
     }
 }

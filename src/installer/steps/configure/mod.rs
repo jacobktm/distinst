@@ -142,6 +142,12 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
         configure_graphics?
     };
 
+    // Provision the immutable overlay system (bundle, configs, fstab, ESP)
+    // before the chroot phase so the immutable hooks are present when kernel
+    // packages are installed.
+    let immutable_username = user.as_ref().map(|u| u.username.as_str());
+    crate::immutable::provision(disks, &mount_dir, immutable_username)?;
+
     {
         info!("chrooting into target on {}", mount_dir.display());
 
@@ -307,7 +313,11 @@ pub fn configure<D: InstallerDiskOps, P: AsRef<Path>, S: AsRef<str>, F: FnMut(i3
 
         callback(75);
 
-        chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        // The immutable layout pre-seeds the kernelstub configuration and uses
+        // its own hooks, so kernelstub must not run inside the chroot.
+        if !crate::immutable::is_immutable(disks) {
+            chroot.bootloader().with_context(|why| format!("error installing bootloader: {}", why))?;
+        }
 
         callback(80);
 

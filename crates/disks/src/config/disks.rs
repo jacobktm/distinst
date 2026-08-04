@@ -189,7 +189,7 @@ impl Disks {
             self.get_partitions().filter(|part| part.target.is_some() && part.filesystem.is_some());
 
         enum MountKind {
-            Direct { device: PathBuf, fs: &'static str },
+            Direct { device: PathBuf, fs: &'static str, options: Option<String> },
             Bind { source: PathBuf },
         }
 
@@ -238,7 +238,11 @@ impl Disks {
                         fs => fs.into(),
                     };
 
-                    MountKind::Direct { device: target.device_path.clone(), fs }
+                    MountKind::Direct {
+                        device: target.device_path.clone(),
+                        fs,
+                        options: target.mount_options.clone(),
+                    }
                 };
                 (target_mount, kind)
             })
@@ -256,9 +260,9 @@ impl Disks {
             }
 
             let mount = match kind {
-                MountKind::Direct { device, fs } => {
+                MountKind::Direct { device, fs, options } => {
                     info!("mounting {:?} ({}) to {:?}", device, fs, target_mount);
-                    Mount::new(device, &target_mount, fs, MountFlags::empty(), None)?
+                    Mount::new(device, &target_mount, fs, MountFlags::empty(), options.as_deref())?
                 }
                 MountKind::Bind { source } => {
                     info!("bind mounting {:?} to {:?}", source, target_mount);

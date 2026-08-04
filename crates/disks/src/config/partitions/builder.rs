@@ -15,6 +15,7 @@ pub struct PartitionBuilder {
     pub mount:        Option<PathBuf>,
     pub volume_group: Option<(String, Option<LvmEncryption>)>,
     pub key_id:       Option<String>,
+    pub mount_options: Option<String>,
 }
 
 impl PartitionBuilder {
@@ -30,6 +31,7 @@ impl PartitionBuilder {
             mount:        None,
             volume_group: None,
             key_id:       None,
+            mount_options: None,
         }
     }
 
@@ -81,6 +83,12 @@ impl PartitionBuilder {
         self
     }
 
+    /// Defines mount options for this partition (e.g. "subvol=@base").
+    pub fn mount_options(mut self, options: String) -> PartitionBuilder {
+        self.mount_options = Some(options);
+        self
+    }
+
     /// Builds a brand new Partition from the current state of the builder.
     pub fn build(self) -> PartitionInfo {
         PartitionInfo {
@@ -107,6 +115,7 @@ impl PartitionBuilder {
             original_vg:  None,
             volume_group: self.volume_group.clone(),
             key_id:       self.key_id,
+            mount_options: self.mount_options,
             identifiers:  PartitionIdentifiers::default(),
         }
     }

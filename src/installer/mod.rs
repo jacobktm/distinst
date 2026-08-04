@@ -166,6 +166,9 @@ impl Installer {
                 Installer::partition(&mut disks, percent!(steps))
             })?;
 
+            // Create the immutable btrfs subvolumes on the formatted root.
+            crate::immutable::create_subvolumes(&disks)?;
+
             // Mount the temporary directory, and all of our mount targets.
             info!("mounting temporary chroot directory at {}", Self::CHROOT_ROOT);
 

@@ -240,6 +240,7 @@ impl LogicalDevice {
                     original_vg: None,
                     volume_group: None,
                     key_id: None,
+                    mount_options: None,
                     identifiers,
                 };
 

@@ -192,6 +192,10 @@ pub fn bootloader<F: FnMut(i32)>(
         }
     }
 
+    // For the immutable layout, snapshot the configured @base into the boot
+    // overlays, lock @base read-only, and write the systemd-boot entries.
+    crate::immutable::finalize(disks, mount_dir)?;
+
     callback(99);
 
     Ok(())

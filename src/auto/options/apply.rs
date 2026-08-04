@@ -422,7 +422,6 @@ fn erase_config(
 
     let start_sector = Sector::Start;
     let boot_sector = Sector::Unit(DEFAULT_ESP_SECTORS);
-    let recovery_sector = Sector::Unit(DEFAULT_ESP_SECTORS + DEFAULT_RECOVER_SECTORS);
     let swap_sector = Sector::UnitFromEnd(DEFAULT_SWAP_SECTORS);
     let end_sector = Sector::End;
 
@@ -451,17 +450,7 @@ fn erase_config(
                                 .mount("/boot/efi".into()),
                         )
                     })
-                    // Configure recovery partition
-                    .and_then(|_| {
-                        let start = device.get_sector(boot_sector);
-                        let end = device.get_sector(recovery_sector);
-                        device.add_partition(
-                            PartitionBuilder::new(start, end, Fat32)
-                                .name("recovery".into())
-                                .mount("/recovery".into()),
-                        )
-                    })
-                    .map(|_| (device.get_sector(recovery_sector), device.get_sector(swap_sector)))
+                    .map(|_| (device.get_sector(boot_sector), device.get_sector(swap_sector)))
             }
             Bootloader::Bios => {
                 device
@@ -495,7 +484,12 @@ fn erase_config(
                         .partition_type(PartitionType::Primary)
                         .logical_volume(root_vg, Some(enc))
                 } else {
-                    PartitionBuilder::new(start, end, Ext4).mount("/".into())
+                    // Immutable btrfs root: the OS template lives in the "@base"
+                    // subvolume, which is mounted for extraction/configuration.
+                    PartitionBuilder::new(start, end, Btrfs)
+                        .name("immutable".into())
+                        .mount_options("subvol=@base".into())
+                        .mount("/".into())
                 })
             })
             // Configure swap partition

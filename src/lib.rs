@@ -58,6 +58,7 @@ pub use crate::upgrade::*;
 pub use self::installer::RecoveryEnv;
 
 mod distribution;
+mod immutable;
 mod installer;
 mod logging;
 mod upgrade;
