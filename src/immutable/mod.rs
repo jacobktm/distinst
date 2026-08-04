@@ -383,7 +383,9 @@ fn kernel_options(uuid: &str, subvol: &str, nvidia: bool) -> String {
 
 /// Writes the systemd-boot loader configuration and overlay entries.
 fn write_boot_entries(mount_dir: &Path, uuid: &str) -> io::Result<()> {
-    let has_nvidia = Path::new("/var/lib/dkms/nvidia").exists();
+    // The nvidia dkms tree lives in the configured @base rootfs, not in the
+    // live session from which the installer runs.
+    let has_nvidia = mount_dir.join("var/lib/dkms/nvidia").exists();
     let entries = mount_dir.join("boot/efi/loader/entries");
     fs::create_dir_all(&entries)
         .map_err(|why| io_err(format!("creating {}: {}", entries.display(), why)))?;
