@@ -77,12 +77,6 @@ fn mount_pool(device: &Path, mount_dir: &Path) -> io::Result<Mount> {
         .map_err(|why| io_err(format!("mounting pool at {}: {}", pool.display(), why)))
 }
 
-/// Executes a command and fails with a readable message on error.
-fn run(cmd: &str, args: &[&str], what: &str) -> io::Result<()> {
-    let osargs: Vec<std::ffi::OsString> = args.iter().map(Into::into).collect();
-    exec(cmd, None, None, &osargs).map_err(|why| io_err(format!("{}: {}", what, why)))
-}
-
 /// Recursively copies `src` into `dest` using `cp -a`.
 fn copy_tree(src: &Path, dest: &Path) -> io::Result<()> {
     if let Some(parent) = dest.parent() {
