@@ -815,8 +815,9 @@ impl Disk {
                 let mount = partition.target.as_ref().map(|ref path| path.to_path_buf());
                 let vg = partition.volume_group.as_ref().cloned();
                 let keyid = partition.key_id.as_ref().cloned();
-                if mount.is_some() || vg.is_some() || keyid.is_some() {
-                    Some((start, mount, vg, keyid))
+                let mopts = partition.mount_options.clone();
+                if mount.is_some() || vg.is_some() || keyid.is_some() || mopts.is_some() {
+                    Some((start, mount, vg, keyid, mopts))
                 } else {
                     None
                 }
@@ -827,7 +828,7 @@ impl Disk {
         *self = Disk::from_name_with_serial(&self.device_path, &self.serial)?;
 
         // Then re-add the critical information which was lost.
-        for (sector, mount, vg, keyid) in collected {
+        for (sector, mount, vg, keyid, mopts) in collected {
             info!("checking for mount target at {}", sector);
             let part = self
                 .get_partition_at(sector)
@@ -837,6 +838,7 @@ impl Disk {
             part.target = mount;
             part.volume_group = vg;
             part.key_id = keyid;
+            part.mount_options = mopts;
         }
 
         Ok(())
