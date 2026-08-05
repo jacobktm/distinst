@@ -20,7 +20,7 @@ pub use self::{block::*, luks::*, lvm::*};
 
 use std::{
     ffi::OsString,
-    io::{self, Write},
+    io::{self, Read, Write},
     process::{Command, Stdio},
 };
 
@@ -37,10 +37,16 @@ pub fn exec(
         .args(args)
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()?;
 
     if let Some(stdin) = stdin {
         child.stdin.as_mut().expect("stdin not obtained").write_all(stdin)?;
+    }
+
+    let mut stderr = Vec::new();
+    if let Some(mut err) = child.stderr.take() {
+        let _ = err.read_to_end(&mut stderr);
     }
 
     let status = child.wait()?;
@@ -51,15 +57,17 @@ pub fn exec(
     if success {
         Ok(())
     } else {
+        let detail = String::from_utf8_lossy(&stderr).trim().to_string();
         Err(io::Error::new(
             io::ErrorKind::Other,
             format!(
-                "{} failed with status: {}",
+                "{} failed with status: {}{}",
                 cmd,
                 match status.code() {
-                    Some(code) => format!("{} ({})", code, io::Error::from_raw_os_error(code)),
+                    Some(code) => format!("{}", code),
                     None => "unknown".into(),
-                }
+                },
+                if detail.is_empty() { String::new() } else { format!(": {}", detail) },
             ),
         ))
     }

@@ -18,6 +18,7 @@
 use crate::external::exec;
 use crate::installer::traits::InstallerDiskOps;
 use std::{
+    ffi::OsString,
     fs, io,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
@@ -87,7 +88,7 @@ fn copy_tree(src: &Path, dest: &Path) -> io::Result<()> {
     let mut src_arg = src.as_os_str().to_owned();
     src_arg.push(".");
     let dest_arg = dest.as_os_str().to_owned();
-    exec("cp", None, None, &[src_arg, dest_arg])
+    exec("cp", None, None, &[OsString::from("-a"), src_arg, dest_arg])
         .map_err(|why| io_err(format!("copying {} to {}: {}", src.display(), dest.display(), why)))
 }
 
