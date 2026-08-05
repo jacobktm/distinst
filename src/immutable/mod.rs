@@ -22,7 +22,7 @@ use std::{
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
-use sys_mount::{Mount, MountFlags};
+use sys_mount::{Mount, MountFlags, Unmount, UnmountFlags};
 use tempdir::TempDir;
 
 pub const SUBVOL_BASE: &str = "@base";
@@ -105,7 +105,7 @@ pub fn create_subvolumes<D: InstallerDiskOps>(disks: &D) -> io::Result<()> {
 
     let tmp = TempDir::new("distinst-subvol").map_err(|why| io_err(format!("creating temp dir: {}", why)))?;
     {
-        let _mount = Mount::new(&device, tmp.path(), "btrfs", MountFlags::empty(), Some(TOP_LEVEL))
+        let mount = Mount::new(&device, tmp.path(), "btrfs", MountFlags::empty(), Some(TOP_LEVEL))
             .map_err(|why| io_err(format!("mounting {} for subvolume creation: {}", device.display(), why)))?;
 
         for subvol in &[SUBVOL_DATA, SUBVOL_SNAPSHOTS, SUBVOL_BASE] {
@@ -124,6 +124,15 @@ pub fn create_subvolumes<D: InstallerDiskOps>(disks: &D) -> io::Result<()> {
         for dotfile in &[".bash_history", ".profile", ".bashrc", ".gitconfig"] {
             let _ = fs::OpenOptions::new().create(true).truncate(true).write(true).open(data.join(dotfile));
         }
+
+        // Unmount the temporary top-level mount before the chroot mounts the
+        // same device with `subvol=@base`. Leaving the top-level mount in place
+        // makes the subsequent mount of the same device fail with ENOENT; this
+        // mirrors install.sh, which unmounts between subvolume creation and the
+        // `subvol=@base` mount.
+        mount
+            .unmount(UnmountFlags::empty())
+            .map_err(|why| io_err(format!("unmounting {} after subvolume creation: {}", device.display(), why)))?;
     }
 
     info!("created btrfs subvolumes {}/{}/{}/{}", SUBVOL_DATA, SUBVOL_SNAPSHOTS, SUBVOL_BASE, TOP_LEVEL);
