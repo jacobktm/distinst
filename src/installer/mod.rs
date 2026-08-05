@@ -219,6 +219,11 @@ impl Installer {
             })?;
 
             mounts.unmount(false).with_context(|err| format!("chroot unmount: {}", err))?;
+
+            // Lock `@base` read-only now that the chroot root is unmounted;
+            // btrfs refuses to mark a rw-mounted subvolume read-only.
+            crate::immutable::lock_base(&disks, mount_dir.path())?;
+
             mount_dir.close().with_context(|err| format!("closing mount directory: {}", err))
         })?;
 

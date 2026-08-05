@@ -230,7 +230,7 @@ fn immutable_fstab(mount_dir: &Path) -> io::Result<()> {
         if fields.len() >= 6 && fields[1] == "/" && fields[2] == "btrfs" {
             root = Some(fields[0].to_string());
             out.push_str(&format!(
-                "{}  /  btrfs  defaults,noatime,compress=zstd:1,ssd,subvol={}  0  1\n",
+                "{}  /  btrfs  defaults,noatime,compress=zstd:1,ssd,subvol={}  0  0\n",
                 fields[0], SUBVOL_OVERLAY_INIT
             ));
         } else {
@@ -369,7 +369,11 @@ pub fn provision<D: InstallerDiskOps>(disks: &D, mount_dir: &Path, username: Opt
         // initramfs/kernelpostinst hooks have a target during the chroot install.
         copy_kernel_to_esp(mount_dir, &uuid)?;
     }
-    drop(pool);
+
+    // Unmount the pool before returning: `Mount` does not unmount on drop, and
+    // finalize mounts the same device at the same path later.
+    pool.unmount(UnmountFlags::empty())
+        .map_err(|why| io_err(format!("unmounting pool after provisioning: {}", why)))?;
     Ok(())
 }
 
@@ -470,17 +474,48 @@ pub fn finalize<D: InstallerDiskOps>(disks: &D, mount_dir: &Path) -> io::Result<
 
         btrfs(&["property", "set", "-ts", recovery.to_str().unwrap(), "ro", "true"])
             .map_err(|why| io_err(format!("locking {} read-only: {}", SUBVOL_OVERLAY_RECOVERY, why)))?;
-        btrfs(&["property", "set", "-ts", base.to_str().unwrap(), "ro", "true"])
-            .map_err(|why| io_err(format!("locking {} read-only: {}", SUBVOL_BASE, why)))?;
+
+        // NOTE: `@base` is not locked here. It is still mounted read-write as
+        // the chroot root, and btrfs refuses to mark a rw-mounted subvolume
+        // read-only (EBUSY). `lock_base` runs after the chroot is unmounted.
+        // See `lock_base` below and the caller in the installer.
 
         // Initialize the boot counter in @data.
         let data = pool_path(mount_dir).join(SUBVOL_DATA);
         write_file(&data.join("boot-counter"), "0\n", 0o644)?;
         write_file(&data.join("boot-last-overlay"), &format!("{}\n", SUBVOL_OVERLAY_INIT), 0o644)?;
     }
-    drop(pool);
 
-    info!("created {} and {}; {} is read-only", SUBVOL_OVERLAY_INIT, SUBVOL_OVERLAY_RECOVERY, SUBVOL_BASE);
+    // Unmount the pool before returning: `Mount` does not unmount on drop.
+    pool.unmount(UnmountFlags::empty())
+        .map_err(|why| io_err(format!("unmounting pool after finalizing: {}", why)))?;
+
+    info!("created {} and {}; {} is read-only", SUBVOL_OVERLAY_INIT, SUBVOL_OVERLAY_RECOVERY, SUBVOL_OVERLAY_RECOVERY);
+    Ok(())
+}
+
+/// Locks `@base` read-only after the chroot root (mounted with `subvol=@base`)
+/// has been unmounted. btrfs rejects marking a rw-mounted subvolume read-only,
+/// so this must run strictly after `mounts.unmount` in the installer; mirrors
+/// install.sh, which unmounts `@base` before `btrfs property set ro true`.
+pub fn lock_base<D: InstallerDiskOps>(disks: &D, mount_dir: &Path) -> io::Result<()> {
+    if !is_immutable(disks) {
+        return Ok(());
+    }
+    let device = root_device(disks)?;
+
+    info!("locking {} read-only", SUBVOL_BASE);
+
+    let pool = mount_pool(&device, mount_dir)?;
+    let base = pool_path(mount_dir).join(SUBVOL_BASE);
+    let result = btrfs(&["property", "set", "-ts", base.to_str().unwrap(), "ro", "true"])
+        .map_err(|why| io_err(format!("locking {} read-only: {}", SUBVOL_BASE, why)));
+
+    pool.unmount(UnmountFlags::empty())
+        .map_err(|why| io_err(format!("unmounting pool after locking {}: {}", SUBVOL_BASE, why)))?;
+    result?;
+
+    info!("{} is read-only", SUBVOL_BASE);
     Ok(())
 }
 
