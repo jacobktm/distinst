@@ -472,6 +472,12 @@ pub fn finalize<D: InstallerDiskOps>(disks: &D, mount_dir: &Path) -> io::Result<
         copy_tree(&mount_dir.join("boot/efi"), &init.join("boot/efi"))?;
         copy_tree(&mount_dir.join("boot/efi"), &recovery.join("boot/efi"))?;
 
+        // `@base` gets its own local ESP copy too so that base can update its
+        // own kernel lineage (postinst hooks write into the shell's bound
+        // /boot/efi) and overlays created from base inherit a kernel that
+        // matches the modules in the snapshot.
+        copy_tree(&mount_dir.join("boot/efi"), &base.join("boot/efi"))?;
+
         btrfs(&["property", "set", "-ts", recovery.to_str().unwrap(), "ro", "true"])
             .map_err(|why| io_err(format!("locking {} read-only: {}", SUBVOL_OVERLAY_RECOVERY, why)))?;
 
