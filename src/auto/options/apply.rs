@@ -512,8 +512,14 @@ fn erase_config(
         let start = lvm_device.get_sector(start_sector);
         let end = lvm_device.get_sector(end_sector);
 
+        // Immutable btrfs root (same layout as the unencrypted case): the OS
+        // template lives in the "@base" subvolume of the encrypted LV, which is
+        // mounted for extraction/configuration.
         lvm_device.add_partition(
-            PartitionBuilder::new(start, end, Ext4).name("root".into()).mount("/".into()),
+            PartitionBuilder::new(start, end, Btrfs)
+                .name("root".into())
+                .mount_options("subvol=@base".into())
+                .mount("/".into()),
         )?;
     }
 
