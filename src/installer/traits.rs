@@ -93,7 +93,11 @@ impl InstallerDiskOps for Disks {
                                             crypttab.push(&uuid.id);
                                             crypttab.push(" ");
                                             crypttab.push(&password);
-                                            crypttab.push(" luks\n");
+                                            // initramfs: include the root entry in the initramfs
+                                            // crypttab unconditionally, so update-initramfs works
+                                            // from an overlay shell chroot where get_mnt_devno(/)
+                                            // cannot resolve the btrfs root device.
+                                            crypttab.push(" luks,initramfs\n");
                                         }
                                     }
                                     None => warn!(
